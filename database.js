@@ -16,6 +16,9 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
     )`, (err) => {
       if (err) {
         console.log('Table columns already created...')
+      } else {
+        let insert = `INSERT INTO columns (title, id) VALUES (?,?)`
+        db.run(insert, ["Backlog", "EpVhAaWDFWYSbfS_Pfoja"])
       }
     })
     db.run(`CREATE TABLE tasks (
@@ -27,6 +30,10 @@ let db = new sqlite3.Database(DBSOURCE, (err) => {
     )`, (err) => {
       if (err) {
         console.log('Table tasks already created...')
+      } else {
+        let insert = `INSERT INTO tasks (title, id, createdAt, columnId) VALUES (?,?,?,?)`
+        db.run(insert, ['First Task', 'gEwFJHYGVoY_-S6QUSFXn', '2023-04-14T08:19:15.870Z', 'EpVhAaWDFWYSbfS_Pfoja'])
+        db.run(insert, ['Second Task', 'hEwFJHYGVoY_-S6QUSFFn', '2023-04-14T08:20:15.870Z', 'EpVhAaWDFWYSbfS_Pfoja'])
       }
     })
   }

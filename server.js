@@ -2,7 +2,9 @@ let express = require('express')
 let app = express()
 let db = require('./database')
 let bodyParser = require('body-parser')
+let cors = require('cors')
 
+app.use(cors())
 app.use(bodyParser.urlencoded({extended: false}))
 app.use(bodyParser.json())
 
@@ -16,8 +18,8 @@ app.get('/', (req, res, next)=> {
   res.json({message: 'OK'})
 });
 app.get('/api/tasks/', (req, res, next) => {
-  let sqlColumn = `SELECT * FROM columns`
-  let sqlTasks = `SELECT * FROM tasks`
+  let sqlColumn = `SELECT * FROM columns ORDER BY db_id DESC`
+  let sqlTasks = `SELECT * FROM tasks ORDER BY db_id DESC`
   let params = []
 
   let columnData = []
@@ -36,23 +38,28 @@ app.get('/api/tasks/', (req, res, next) => {
       }
       taskData = [...taskRows]
 
-      const finalObj = rows.map(col => {
-        return {
+      const data = []
+      columnData.forEach((col, index) => {
+        data.push({
           id: col.id,
           title: col.title,
-          tasks: taskRows.map(task => {
-            return task.columnId === col.id ? {
+          tasks: []
+        })
+
+        taskRows.forEach(task => {
+          if (task.columnId === col.id) {
+            data[index].tasks.push({
               title: task.title,
               id: task.id,
               createdAt: task.createdAt
-            } : {}
-          })
-        }
+            })
+          }
+        })
       })
 
       res.json({
         message: "success",
-        data: finalObj
+        data: data
       })
     })
   })
@@ -63,51 +70,35 @@ app.post('/api/tasks/', async (req, res, next) => {
   if (req.body.length === 0) {
     errors.push('No Column specified')
   } else {
-    // Clear Tables
-    let clearSql = `DELETE FROM columns; DELETE FROM tasks; VACUUM;`
-    await db.run(clearSql, [], (err) => {
-      if (err) {
-        res.status(400).json({error: err.message})
-        return;
-      }
-    })
+    clearDB();
 
-    console.log(req.body)
+    if (req.body.length > 0) {
+          const data = req.body
+          const colSql = `INSERT INTO columns (title, id) VALUES(?,?)`;
+          const taskSql =`INSERT INTO tasks (title, id, createdAt, columnId) VALUES(?,?,?,?)`;
 
-    req.body.forEach(item => {
-      let columnSql = `INSERT INTO columns (title, id) VALUES(?,?)`
-      let columanParams = [item.title.toString(), item.id.toString()]
-
-      db.run(columnSql, columanParams, (err, colResult) => {
-        if (err) {
-          res.status(400).json({"error": err.message})
-          return;
-        }
-      })
-
-      if (item.tasks.length > 0) {
-        item.tasks.forEach(taskItem => {
-          let taskSql = `INSERT INTO tasks (title, id, createdAt, columnId) VALUES(?,?,?,?)`
-          let taskParmas = [taskItem.title.toString(), taskItem.id.toString(), taskItem.createdAt.toString(), item.id.toString()]
-
-          db.run(taskSql, taskParmas, (err, result) => {
-            if (err) {
-              res.status(400).json({"error": err.message})
-              return;
-            }
+          data.forEach(cols => {
+            db.run(colSql, [cols.title.toString(), cols.id.toString()], () => {
+              cols.tasks.forEach(task => {
+                db.run(taskSql, [task.title.toString(), task.id.toString(), task.createdAt.toString(), cols.id.toString()])
+              })
+            })
           })
-        })
-      }
-
-    })
-
+        }
 
     res.status(200).json({message: 'done'})
-
   }
-
-
 })
 app.use((req, res) => {
   res.status(404)
 })
+
+
+function clearDB() {
+  let clearColsSql = `DELETE FROM columns`
+  let clearTasksSql = `DELETE FROM tasks`
+  let vacuumSql = ` VACUUM`
+  db.run(clearColsSql, [])
+  db.run(clearTasksSql, [])
+  db.run(vacuumSql, [])
+}
